@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>포모도로 공부법</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#111827,#1e293b);color:#f8fafc;padding:28px}.app{max-width:850px;margin:auto}.hero{text-align:center;margin-bottom:24px}.hero h1{font-size:clamp(32px,7vw,56px);margin:8px 0}.hero p{color:#94a3b8}.card{background:#0f172aee;border:1px solid #334155;border-radius:22px;padding:24px;margin:16px 0;box-shadow:0 12px 35px #0004}.mode{text-align:center;color:#60a5fa;font-weight:800}.timer{text-align:center;font-size:clamp(76px,16vw,140px);font-weight:900;letter-spacing:-6px;margin:8px 0 20px}.buttons{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.btn{border:1px solid #475569;background:#1e293b;color:#fff;padding:12px 18px;border-radius:12px;font-weight:800;cursor:pointer}.btn:hover{filter:brightness(1.15)}.primary{background:#3b82f6;border-color:#3b82f6}.settings,.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.settings label{color:#94a3b8;font-size:14px}.settings input,.task input{width:100%;margin-top:6px;padding:11px;border-radius:10px;border:1px solid #475569;background:#0b1220;color:#fff}.task{display:flex;gap:10px}.task input{margin:0;flex:1}.list{display:grid;gap:8px;margin-top:14px}.item{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#111c30;padding:11px 13px;border-radius:10px}.stat{text-align:center;background:#111c30;border-radius:14px;padding:16px}.stat b{display:block;font-size:28px}.muted{color:#94a3b8}@media(max-width:600px){body{padding:16px}.card{padding:18px}.settings,.stats{grid-template-columns:1fr}.task{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="hero"><h1>🍅 포모도로 공부법</h1><p>집중과 휴식을 반복하면서 효율적으로 공부해 보세요.</p></header>
+
+<section class="card">
+<div class="mode" id="mode">집중 시간</div>
+<div class="timer" id="timer">25:00</div>
+<div class="buttons">
+<button class="btn primary" id="start">시작</button>
+<button class="btn" id="pause">일시정지</button>
+<button class="btn" id="reset">초기화</button>
+</div>
+</section>
+
+<section class="card">
+<h2>공부 시간 설정</h2>
+<div class="settings">
+<label>집중 시간(분)<input id="focus" type="number" min="1" value="25"></label>
+<label>짧은 휴식(분)<input id="short" type="number" min="1" value="5"></label>
+<label>긴 휴식(분)<input id="long" type="number" min="1" value="15"></label>
+</div>
+</section>
+
+<section class="card">
+<h2>오늘의 공부 목록</h2>
+<div class="task"><input id="taskInput" placeholder="예: 영어 단어 30개 외우기"><button class="btn primary" id="add">추가</button></div>
+<div class="list" id="tasks"></div>
+</section>
+
+<section class="card">
+<h2>공부 기록</h2>
+<div class="stats">
+<div class="stat"><b id="sessions">0</b><span class="muted">완료 세션</span></div>
+<div class="stat"><b id="minutes">0</b><span class="muted">집중 분</span></div>
+<div class="stat"><b id="today">0</b><span class="muted">오늘 세션</span></div>
+</div>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let mode="focus",remaining=1500,running=false,timerId=null;
+let sessions=Number(localStorage.podoSessions||0),minutes=Number(localStorage.podoMinutes||0);
+let todayKey=new Date().toISOString().slice(0,10);
+let todaySessions=Number(localStorage.podoTodayKey===todayKey?localStorage.podoTodaySessions:0);
+
+function duration(){const v=mode==="focus"?$("focus").value:mode==="short"?$("short").value:$("long").value;return Math.max(1,Number(v))*60}
+function render(){
+ const m=String(Math.floor(remaining/60)).padStart(2,"0"),s=String(remaining%60).padStart(2,"0");
+ $("timer").textContent=m+":"+s;
+ $("mode").textContent=mode==="focus"?"집중 시간":mode==="short"?"짧은 휴식":"긴 휴식";
+ $("sessions").textContent=sessions;$("minutes").textContent=minutes;$("today").textContent=todaySessions;
+ document.title=remaining>0?m+":"+s+" · 포모도로":"포모도로 공부법";
+}
+function reset(){clearInterval(timerId);running=false;remaining=duration();render()}
+function finish(){
+ clearInterval(timerId);running=false;
+ if(mode==="focus"){
+   sessions++;minutes+=Number($("focus").value);todaySessions++;
+   localStorage.podoSessions=sessions;localStorage.podoMinutes=minutes;
+   localStorage.podoTodayKey=todayKey;localStorage.podoTodaySessions=todaySessions;
+   mode="short";
+ }else mode="focus";
+ remaining=duration();render();
+}
+$("start").onclick=()=>{if(running)return;running=true;timerId=setInterval(()=>{remaining--;render();if(remaining<=0)finish()},1000)}
+$("pause").onclick=()=>{clearInterval(timerId);running=false}
+$("reset").onclick=reset;
+["focus","short","long"].forEach(id=>$(id).onchange=()=>{if(!running)reset()});
+$("add").onclick=addTask;
+$("taskInput").addEventListener("keydown",e=>{if(e.key==="Enter")addTask()});
+function addTask(){const v=$("taskInput").value.trim();if(!v)return;const tasks=JSON.parse(localStorage.podoTasks||"[]");tasks.push(v);localStorage.podoTasks=JSON.stringify(tasks);$("taskInput").value="";drawTasks()}
+function removeTask(i){const tasks=JSON.parse(localStorage.podoTasks||"[]");tasks.splice(i,1);localStorage.podoTasks=JSON.stringify(tasks);drawTasks()}
+function drawTasks(){
+ const tasks=JSON.parse(localStorage.podoTasks||"[]");
+ $("tasks").innerHTML=tasks.length?tasks.map((t,i)=>'<div class="item"><span>'+escapeHtml(t)+'</span><button class="btn" onclick="removeTask('+i+')">삭제</button></div>').join(""):'<div class="muted">등록된 공부 내용이 없습니다.</div>';
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+reset();drawTasks();
+</script>
+</body>
+</html>
